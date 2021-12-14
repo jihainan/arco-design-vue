@@ -1,10 +1,12 @@
 <template>
-  <teleport :to="popupContainer" :disabled="!renderToBody">
+  <teleport :to="containerNode" :disabled="!renderToBody">
     <transition name="fade-drawer" appear>
       <div
         v-show="computedVisible"
         :class="`${prefixCls}-container`"
-        :style="{ zIndex }"
+        :style="
+          isFixed ? { zIndex } : { zIndex: 'inherit', position: 'absolute' }
+        "
         v-bind="$attrs"
       >
         <transition name="fade-drawer" appear>
@@ -41,12 +43,13 @@
             </div>
             <div :class="`${prefixCls}-footer`">
               <slot name="footer">
-                <arco-button @click="handleCancel">
+                <arco-button v-bind="cancelButtonProps" @click="handleCancel">
                   {{ cancelText || t('drawer.cancelText') }}
                 </arco-button>
                 <arco-button
                   type="primary"
-                  :loading="okLoading"
+                  :loading="mergedOkLoading"
+                  v-bind="okButtonProps"
                   @click="handleOk"
                 >
                   {{ okText || t('drawer.okText') }}
@@ -71,7 +74,7 @@ import { useI18n } from '../locale';
 import { useOverflow } from '../_hooks/use-overflow';
 import { getElement } from '../_utils/dom';
 import usePopupManager from '../_hooks/use-popup-manager';
-import { isNumber } from '../_utils/is';
+import { isBoolean, isFunction, isNumber } from '../_utils/is';
 
 const DRAWER_PLACEMENTS = ['top', 'right', 'bottom', 'left'] as const;
 type DrawerPlacements = typeof DRAWER_PLACEMENTS[number];
@@ -160,6 +163,22 @@ export default defineComponent({
       default: false,
     },
     /**
+     * @zh 确认按钮的Props
+     * @en Props of confirm button
+     * @version 2.9.0
+     */
+    okButtonProps: {
+      type: Object,
+    },
+    /**
+     * @zh 取消按钮的Props
+     * @en Props of cancel button
+     * @version 2.9.0
+     */
+    cancelButtonProps: {
+      type: Object,
+    },
+    /**
      * @zh 抽屉的宽度（仅在placement为right,left时可用）
      * @en The width of the drawer (only available when placement is right, left)
      */
@@ -192,6 +211,23 @@ export default defineComponent({
     drawerStyle: {
       type: Object as PropType<CSSProperties>,
     },
+    /**
+     * @zh 触发 ok 事件前的回调函数。如果返回 false 则不会触发后续事件，也可使用 done 进行异步关闭。
+     * @en The callback function before the ok event is triggered. If false is returned, subsequent events will not be triggered, and done can also be used to close asynchronously.
+     */
+    onBeforeOk: {
+      type: [Function, Array] as PropType<
+        (done: (closed: boolean) => void) => void | boolean
+      >,
+    },
+    /**
+     * @zh 触发 cancel 事件前的回调函数。如果返回 false 则不会触发后续事件。
+     * @en The callback function before the cancel event is triggered. If it returns false, no subsequent events will be triggered.
+     */
+    onBeforeCancel: {
+      type: [Function, Array] as PropType<() => boolean>,
+    },
+
     renderToBody: {
       type: Boolean,
       default: true,
@@ -237,37 +273,89 @@ export default defineComponent({
 
     const _visible = ref(props.defaultVisible);
     const computedVisible = computed(() => props.visible ?? _visible.value);
+    const _okLoading = ref(false);
+    const mergedOkLoading = computed(() => props.okLoading || _okLoading.value);
 
     const { zIndex } = usePopupManager({ visible: computedVisible });
+    const isFixed = computed(() => {
+      return containerRef?.value === document.body;
+    });
+
+    const containerNode = computed(() => {
+      const ele = getElement(props.popupContainer);
+      if (!ele && !computedVisible.value) {
+        //  watch computedVisible
+        return 'body';
+      }
+      return ele || 'body';
+    });
+
+    // Used to ignore closed Promises
+    let promiseNumber = 0;
 
     const close = () => {
+      promiseNumber++;
+      if (_okLoading.value) {
+        _okLoading.value = false;
+      }
       _visible.value = false;
       emit('update:visible', false);
     };
 
     const handleOk = () => {
-      emit('ok');
-      close();
+      const currentPromiseNumber = promiseNumber;
+      const promise = new Promise((resolve: (closed?: boolean) => void) => {
+        if (isFunction(props.onBeforeOk)) {
+          const result = props.onBeforeOk(resolve);
+
+          if (isBoolean(result)) {
+            resolve(result);
+          } else {
+            _okLoading.value = true;
+          }
+        } else {
+          resolve();
+        }
+      });
+
+      promise.then((closed = true) => {
+        if (currentPromiseNumber === promiseNumber) {
+          _okLoading.value = false;
+          if (closed) {
+            emit('ok');
+            close();
+          }
+        }
+      });
     };
 
     const handleCancel = () => {
-      emit('cancel');
-      close();
-    };
-
-    const handleMask = () => {
-      if (props.maskClosable) {
+      let result = true;
+      if (isFunction(props.onBeforeCancel)) {
+        result = props.onBeforeCancel() ?? false;
+      }
+      if (result) {
         emit('cancel');
         close();
       }
     };
 
+    const handleMask = () => {
+      if (props.maskClosable) {
+        handleCancel();
+      }
+    };
+
     const handleOpen = () => {
-      emit('open');
+      if (computedVisible.value) {
+        emit('open');
+      }
     };
 
     const handleClose = () => {
-      emit('close');
+      if (!computedVisible.value) {
+        emit('close');
+      }
     };
 
     const { setOverflowHidden, resetOverflow } = useOverflow(containerRef);
@@ -310,12 +398,15 @@ export default defineComponent({
       style,
       t,
       computedVisible,
+      mergedOkLoading,
       zIndex,
       handleOk,
       handleCancel,
       handleOpen,
       handleClose,
       handleMask,
+      isFixed,
+      containerNode,
     };
   },
 });

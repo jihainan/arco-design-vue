@@ -2,6 +2,33 @@
 changelog: true
 ```
 
+## 2.10.0
+
+`2021-12-10`
+
+### 💎 Optimization
+
+- When the input box is editable, clicking will not close the drop-down menu ([#348](https://github.com/arco-design/arco-design-vue/pull/348))
+
+### 🆕 Feature
+
+- Add fallback-option and show-extra-options attributes ([#347](https://github.com/arco-design/arco-design-vue/pull/347))
+
+### 🐛 BugFix
+
+- Fix the problem of warnings when components are used in JSX, and variables cannot be used in slots ([#347](https://github.com/arco-design/arco-design-vue/pull/347))
+- Fix the problem that the drop-down menu cannot pop up when the icon is clicked for the first time in the multi-select input box ([#347](https://github.com/arco-design/arco-design-vue/pull/347))
+
+
+## 2.8.0
+
+`2021-12-01`
+
+### 🆕 Feature
+
+- Add support for `tagProps` ([#307](https://github.com/arco-design/arco-design-vue/pull/307))
+
+
 ## 2.6.0
 
 `2021-11-19`
