@@ -105,18 +105,30 @@ export default defineComponent({
       default: 'text',
     },
     // for JSX
-    onInput: [Function, Array] as PropType<
-      EmitType<(value: string, ev: Event) => void>
-    >,
-    onChange: [Function, Array] as PropType<
-      EmitType<(value: string, ev: Event) => void>
-    >,
-    onPressEnter: [Function, Array] as PropType<
-      EmitType<(ev: KeyboardEvent) => void>
-    >,
-    onClear: [Function, Array] as PropType<EmitType<(ev: MouseEvent) => void>>,
-    onFocus: [Function, Array] as PropType<EmitType<(ev: FocusEvent) => void>>,
-    onBlur: [Function, Array] as PropType<EmitType<(ev: FocusEvent) => void>>,
+    onInput: {
+      type: [Function, Array] as PropType<
+        EmitType<(value: string, ev: Event) => void>
+      >,
+    },
+    onChange: {
+      type: [Function, Array] as PropType<
+        EmitType<(value: string, ev: Event) => void>
+      >,
+    },
+    onPressEnter: {
+      type: [Function, Array] as PropType<
+        EmitType<(ev: KeyboardEvent) => void>
+      >,
+    },
+    onClear: {
+      type: [Function, Array] as PropType<EmitType<(ev: MouseEvent) => void>>,
+    },
+    onFocus: {
+      type: [Function, Array] as PropType<EmitType<(ev: FocusEvent) => void>>,
+    },
+    onBlur: {
+      type: [Function, Array] as PropType<EmitType<(ev: FocusEvent) => void>>,
+    },
   },
   emits: [
     'update:modelValue',
@@ -253,8 +265,8 @@ export default defineComponent({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const keyCode = e.code || e.key;
-      if (!isComposition.value && keyCode === Enter.code) {
+      const keyCode = e.key || e.code;
+      if (!isComposition.value && keyCode === Enter.key) {
         emit('change', computedValue.value, e);
         emit('pressEnter', e);
       }
@@ -297,19 +309,20 @@ export default defineComponent({
 
     const cls = computed(() => [prefixCls, `${prefixCls}-size-${props.size}`]);
 
-    const wrapperAttrs = omit(attrs, INPUT_EVENTS);
-    const inputAttrs = pick(attrs, INPUT_EVENTS);
+    const wrapperAttrs = computed(() => omit(attrs, INPUT_EVENTS));
+    const inputAttrs = computed(() => pick(attrs, INPUT_EVENTS));
 
     const renderInput = () => (
       <span
+        {...wrapperAttrs.value}
         class={wrapperCls.value}
         onMousedown={handleMousedown}
-        {...wrapperAttrs}
       >
         {slots.prefix && (
           <span class={`${prefixCls}-prefix`}>{slots.prefix()}</span>
         )}
         <input
+          {...inputAttrs.value}
           ref={inputRef}
           class={cls.value}
           value={computedValue.value}
@@ -324,7 +337,6 @@ export default defineComponent({
           onCompositionstart={handleComposition}
           onCompositionupdate={handleComposition}
           onCompositionend={handleComposition}
-          {...inputAttrs}
         />
         {showClearBtn.value && (
           <IconHover

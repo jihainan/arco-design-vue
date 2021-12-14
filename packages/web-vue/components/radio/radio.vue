@@ -66,6 +66,7 @@ export default defineComponent({
      */
     value: {
       type: [String, Number, Boolean] as PropType<string | number | boolean>,
+      default: true,
     },
     /**
      * @zh 单选的类型
@@ -86,9 +87,11 @@ export default defineComponent({
       default: false,
     },
     // for JSX
-    onChange: [Function, Array] as PropType<
-      EmitType<(value: string | number | boolean, e: Event) => void>
-    >,
+    onChange: {
+      type: [Function, Array] as PropType<
+        EmitType<(value: string | number | boolean, e: Event) => void>
+      >,
+    },
   },
   emits: [
     'update:modelValue',

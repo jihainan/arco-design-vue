@@ -13,7 +13,6 @@ import { getPrefixCls } from '../_utils/global-config';
 import { INPUT_EVENTS, Size, SIZES } from '../_utils/constant';
 import { Backspace, Enter } from '../_utils/keycode';
 import { getValueData } from './utils';
-import usePickSlots from '../_hooks/use-pick-slots';
 import Tag from '../tag';
 import IconHover from '../_components/icon-hover.vue';
 import IconClose from '../icon/icon-close';
@@ -127,13 +126,10 @@ export default defineComponent({
     formatTag: {
       type: Function as PropType<(data: TagData) => string>,
     },
-    hideSuffixOnClear: {
-      type: Boolean,
-      default: false,
-    },
     // private
     baseCls: String,
     focused: Boolean,
+    disabledInput: Boolean,
     // for JSX
     onChange: {
       type: [Function, Array] as PropType<
@@ -207,17 +203,18 @@ export default defineComponent({
 
     const inputRef = ref<HTMLInputElement>();
     const mirrorRef = ref<HTMLElement>();
+
     const _focused = ref(false);
+    const _value = ref(props.defaultValue);
+    const _inputValue = ref(props.defaultInputValue);
+    const isComposition = ref(false);
+    const compositionValue = ref('');
+
     const inputStyle = reactive({
       width: '12px',
     });
-    const _value = ref(props.defaultValue);
-    const _inputValue = ref(props.defaultInputValue);
 
     const mergedFocused = computed(() => props.focused || _focused.value);
-
-    const isComposition = ref(false);
-    const compositionValue = ref('');
 
     const updateInputValue = (value: string) => {
       _inputValue.value = value;
@@ -242,11 +239,6 @@ export default defineComponent({
     const computedInputValue = computed(
       () => props.inputValue ?? _inputValue.value
     );
-
-    const prefixSlot = usePickSlots(slots, 'prefix');
-    const suffixSlot = usePickSlots(slots, 'suffix');
-
-    const hasSuffix = computed(() => suffixSlot.value);
 
     const handleMousedown = (e: MouseEvent) => {
       if (inputRef.value && e.target !== inputRef.value) {
@@ -300,8 +292,9 @@ export default defineComponent({
 
     const showClearBtn = computed(
       () =>
-        props.allowClear &&
         !props.disabled &&
+        !props.readonly &&
+        props.allowClear &&
         Boolean(computedValue.value.length)
     );
 
@@ -333,11 +326,11 @@ export default defineComponent({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const keyCode = e.code || e.key;
+      const keyCode = e.key || e.code;
       if (
         !isComposition.value &&
         computedInputValue.value &&
-        keyCode === Enter.code
+        keyCode === Enter.key
       ) {
         handlePressEnter(e);
       }
@@ -345,7 +338,7 @@ export default defineComponent({
         !isComposition.value &&
         tags.value.length > 0 &&
         !computedInputValue.value &&
-        keyCode === Backspace.code
+        keyCode === Backspace.key
       ) {
         const lastIndex = tags.value.length - 1;
         handleRemove(tags.value[lastIndex].value, lastIndex, e);
@@ -360,13 +353,13 @@ export default defineComponent({
       }
     };
 
-    onUpdated(() => {
+    onMounted(() => {
       if (mirrorRef.value) {
         setInputWidth(mirrorRef.value.offsetWidth);
       }
     });
 
-    onMounted(() => {
+    onUpdated(() => {
       if (mirrorRef.value) {
         setInputWidth(mirrorRef.value.offsetWidth);
       }
@@ -383,21 +376,27 @@ export default defineComponent({
       `${prefixCls}-size-${props.size}`,
       {
         [`${prefixCls}-disabled`]: props.disabled,
+        [`${prefixCls}-disabled-input`]: props.disabledInput,
         [`${prefixCls}-error`]: props.error,
         [`${prefixCls}-focus`]: mergedFocused.value,
         [`${prefixCls}-readonly`]: props.readonly,
         [`${prefixCls}-has-tag`]: tags.value.length > 0,
-        [`${prefixCls}-has-prefix`]: Boolean(prefixSlot.value),
-        [`${prefixCls}-has-suffix`]: hasSuffix.value || showClearBtn.value,
+        [`${prefixCls}-has-prefix`]: Boolean(slots.prefix),
+        [`${prefixCls}-has-suffix`]:
+          Boolean(slots.suffix) || showClearBtn.value,
         [`${prefixCls}-has-placeholder`]: !computedValue.value.length,
       },
     ]);
 
-    const wrapperAttrs = omit(attrs, INPUT_EVENTS);
-    const inputAttrs = pick(attrs, INPUT_EVENTS);
+    const wrapperAttrs = computed(() => omit(attrs, INPUT_EVENTS));
+    const inputAttrs = computed(() => pick(attrs, INPUT_EVENTS));
 
     const render = () => (
-      <span class={cls.value} onMousedown={handleMousedown} {...wrapperAttrs}>
+      <span
+        class={cls.value}
+        onMousedown={handleMousedown}
+        {...wrapperAttrs.value}
+      >
         <span ref={mirrorRef} class={`${prefixCls}-mirror`}>
           {tags.value.length > 0
             ? compositionValue.value || computedInputValue.value
@@ -408,12 +407,17 @@ export default defineComponent({
         {slots.prefix && (
           <span class={`${prefixCls}-prefix`}>{slots.prefix()}</span>
         )}
-        <TransitionGroup tag="span" name="zoom-in" class={`${prefixCls}-inner`}>
+        <TransitionGroup
+          tag="span"
+          name="input-tag-zoom"
+          class={`${prefixCls}-inner`}
+        >
           {tags.value.map((item, index) => (
             <Tag
+              {...item.tagProps}
               key={`tag-${item.value}`}
               class={`${prefixCls}-tag`}
-              closable={item.closable && !props.disabled}
+              closable={!props.disabled && !props.readonly && item.closable}
               visible
               onClose={(ev: MouseEvent) => handleRemove(item.value, index, ev)}
             >
@@ -423,6 +427,7 @@ export default defineComponent({
             </Tag>
           ))}
           <input
+            {...inputAttrs.value}
             ref={inputRef}
             key="input-tag-input"
             class={`${prefixCls}-input`}
@@ -432,7 +437,7 @@ export default defineComponent({
               tags.value.length === 0 ? props.placeholder : undefined
             }
             disabled={props.disabled}
-            readonly={props.readonly}
+            readonly={props.readonly || props.disabledInput}
             onInput={handleInput}
             onKeydown={handleKeyDown}
             onFocus={handleFocus}
@@ -440,7 +445,6 @@ export default defineComponent({
             onCompositionstart={handleComposition}
             onCompositionupdate={handleComposition}
             onCompositionend={handleComposition}
-            {...inputAttrs}
           />
         </TransitionGroup>
         {showClearBtn.value && (
@@ -452,18 +456,8 @@ export default defineComponent({
             <IconClose />
           </IconHover>
         )}
-        {hasSuffix.value && (
-          <span
-            class={[
-              `${prefixCls}-suffix`,
-              {
-                [`${prefixCls}-suffix-hide-on-clear`]:
-                  props.hideSuffixOnClear && showClearBtn.value,
-              },
-            ]}
-          >
-            {slots.suffix?.()}
-          </span>
+        {slots.suffix && (
+          <span class={`${prefixCls}-suffix`}>{slots.suffix()}</span>
         )}
       </span>
     );

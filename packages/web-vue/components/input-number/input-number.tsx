@@ -9,6 +9,7 @@ import IconMinus from '../icon/icon-minus';
 import ArcoButton from '../button';
 import ArcoInput from '../input';
 import { EmitType } from '../_utils/types';
+import { Size, SIZES } from '../_utils/constant';
 
 type StepMethods = 'minus' | 'plus';
 
@@ -105,6 +106,18 @@ export default defineComponent({
     hideButton: {
       type: Boolean,
       default: false,
+    },
+    /**
+     * @zh 输入框大小
+     * @en Input size
+     * @values 'mini', 'small', 'medium', 'large'
+     */
+    size: {
+      type: String as PropType<Size>,
+      default: 'medium',
+      validator: (value: any) => {
+        return SIZES.includes(value);
+      },
     },
     // for JSX
     onChange: {
@@ -284,8 +297,8 @@ export default defineComponent({
       value = value.trim().replace(/。/g, '.');
       value = props.parser?.(value) ?? value;
 
-      if (isNumber(Number(value)) || /^\.|-$/.test(value)) {
-        if (/^\.|-$/.test(value)) {
+      if (isNumber(Number(value)) || /^(\.|-)$/.test(value)) {
+        if (/^(\.|-)$/.test(value)) {
           numberPrefix.value = value;
         } else if (numberPrefix.value) {
           numberPrefix.value = '';
@@ -306,8 +319,9 @@ export default defineComponent({
         );
         const finalValue = getLegalValue(numberValue);
         if (finalValue !== numberValue) {
-          _value.value =
-            props.formatter?.(String(finalValue)) ?? String(finalValue);
+          _value.value = isUndefined(finalValue)
+            ? ''
+            : props.formatter?.(String(finalValue)) ?? String(finalValue);
           updateValue(finalValue, ev);
         }
       }
@@ -362,8 +376,11 @@ export default defineComponent({
         </button>
       </div>
     );
-
-    const cls = computed(() => [prefixCls, `${prefixCls}-mode-${props.mode}`]);
+    const cls = computed(() => [
+      prefixCls,
+      `${prefixCls}-mode-${props.mode}`,
+      `${prefixCls}-size-${props.size}`,
+    ]);
 
     const renderInput = () => {
       const inputSlots =
@@ -377,6 +394,7 @@ export default defineComponent({
           ref={inputRef}
           class={cls.value}
           type="text"
+          size={props.size}
           modelValue={computedValue.value}
           placeholder={props.placeholder}
           disabled={props.disabled}
@@ -396,6 +414,7 @@ export default defineComponent({
       return (
         <InputGroup>
           <ArcoButton
+            size={props.size}
             v-slots={{ icon: () => <IconMinus /> }}
             disabled={props.disabled || isMin.value}
             onMousedown={(e: MouseEvent) => handleStepButton(e, 'minus', true)}
@@ -404,6 +423,7 @@ export default defineComponent({
           />
           {renderInput()}
           <ArcoButton
+            size={props.size}
             v-slots={{ icon: () => <IconPlus /> }}
             disabled={props.disabled || isMax.value}
             onMousedown={(e: MouseEvent) => handleStepButton(e, 'plus', true)}

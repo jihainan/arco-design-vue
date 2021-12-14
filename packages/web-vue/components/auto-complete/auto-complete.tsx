@@ -4,7 +4,7 @@ import {
   ref,
   PropType,
   toRefs,
-  createVNode,
+  ComponentPublicInstance,
 } from 'vue';
 import ArcoInput from '../input';
 import Trigger from '../trigger';
@@ -15,9 +15,9 @@ import {
   OptionInfo,
   FilterOption,
   OptionNode,
-} from '../_components/dropdown/interface';
+} from '../select/interface';
 import { isFunction } from '../_utils/is';
-import { Dropdown, DropDownOption } from '../_components/dropdown';
+import { DropdownPanel, DropDownOption } from '../_components/dropdown';
 import { CODE, getKeyDownHandler } from '../_utils/keyboard';
 import { EmitType } from '../_utils/types';
 
@@ -84,9 +84,15 @@ export default defineComponent({
       default: true,
     },
     // for JSX
-    onChange: [Function, Array] as PropType<EmitType<(value: string) => void>>,
-    onSearch: [Function, Array] as PropType<EmitType<(value: string) => void>>,
-    onSelect: [Function, Array] as PropType<EmitType<(value: string) => void>>,
+    onChange: {
+      type: [Function, Array] as PropType<EmitType<(value: string) => void>>,
+    },
+    onSearch: {
+      type: [Function, Array] as PropType<EmitType<(value: string) => void>>,
+    },
+    onSelect: {
+      type: [Function, Array] as PropType<EmitType<(value: string) => void>>,
+    },
   },
   emits: [
     'update:modelValue',
@@ -134,15 +140,17 @@ export default defineComponent({
       }
       return props.filterOption;
     });
+    const extraOptions = ref([]);
 
     const {
+      nodes,
       optionInfoMap,
       activeOption,
-      optionNodes,
       getNextActiveOption,
       scrollIntoView,
     } = useOptions({
       options: data,
+      extraOptions,
       inputValue: computedValue,
       filterOption: mergedFilterOption,
       dropdownRef,
@@ -157,7 +165,7 @@ export default defineComponent({
 
     const _popupVisible = ref(false);
     const computedPopupVisible = computed(
-      () => _popupVisible.value && optionNodes.value.length > 0
+      () => _popupVisible.value && nodes.value.length > 0
     );
 
     const handlePopupVisibleChange = (popupVisible: boolean) => {
@@ -239,39 +247,38 @@ export default defineComponent({
 
     const renderOption = (item: OptionNode) => {
       const { value = '' } = item;
-      return createVNode(
-        DropDownOption,
-        {
-          ref: (ref) => {
+
+      return (
+        <DropDownOption
+          ref={(ref: ComponentPublicInstance) => {
             if (ref?.$el) {
               optionRefs.value[value] = ref.$el;
             }
-          },
-          key: item.key,
-          value: item.value,
-          disabled: item.disabled,
-          isActive: activeOption.value && value === activeOption.value.value,
-          onClick: handleSelect,
-          onMouseenter: handleMouseEnter,
-          onMouseleave: handleMouseLeave,
-        },
-        {
-          default: () => item.label,
-        }
+          }}
+          key={item.key}
+          value={value}
+          disabled={item.disabled}
+          isActive={activeOption.value && value === activeOption.value.value}
+          onClick={handleSelect}
+          onMouseenter={handleMouseEnter}
+          onMouseleave={handleMouseLeave}
+        >
+          {item.label}
+        </DropDownOption>
       );
     };
 
     const renderDropdown = () => {
-      const _children = optionNodes.value.map((node) => renderOption(node));
+      const _children = nodes.value.map((node) => renderOption(node));
 
       if (_children.length === 0) {
         return null;
       }
 
       return (
-        <Dropdown ref={dropdownRef} class={`${prefixCls}-dropdown`}>
+        <DropdownPanel ref={dropdownRef} class={`${prefixCls}-dropdown`}>
           {_children}
-        </Dropdown>
+        </DropdownPanel>
       );
     };
 
@@ -284,6 +291,7 @@ export default defineComponent({
         clickToClose={false}
         preventFocus={true}
         popupOffset={4}
+        disabled={props.disabled}
         autoFitPopupWidth
         onPopupVisibleChange={handlePopupVisibleChange}
       >
@@ -291,6 +299,7 @@ export default defineComponent({
           ref={inputRef}
           modelValue={computedValue.value}
           onInput={handleInputValueChange}
+          disabled={props.disabled}
           onKeydown={handleKeyDown}
           {...attrs}
         />
